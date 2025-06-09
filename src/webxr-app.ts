@@ -15,6 +15,8 @@ export class WebXRApp {
   private isScalingHeart: boolean = false
   private previousMousePosition: THREE.Vector2 = new THREE.Vector2()
   private initialScale: number = 1
+  private controllers: THREE.Group[] = []
+  private controllerGrips: THREE.Group[] = []
 
   constructor() {
     this.scene = new THREE.Scene()
@@ -33,6 +35,7 @@ export class WebXRApp {
     this.setupControls()
     this.setupLighting()
     this.setupWebXR()
+    this.setupControllers()
     this.setupSlate()
     this.setupMouseInteraction()
     this.animate()
@@ -106,6 +109,8 @@ export class WebXRApp {
       }).catch(console.error)
     }
   }
+
+
 
 
   private async setupPointCloud(): Promise<void> {
@@ -293,6 +298,119 @@ export class WebXRApp {
 
 
 // CONTROLLER SETUP
+
+  private setupControllers(): void {
+    // Controller 0 
+    const controller1 = this.renderer.xr.getController(0)
+    controller1.addEventListener('selectstart', this.onSelectStart.bind(this))
+    controller1.addEventListener('selectend', this.onSelectEnd.bind(this))
+    controller1.addEventListener('squeezestart', this.onSqueezeStart.bind(this))
+    controller1.addEventListener('squeezeend', this.onSqueezeEnd.bind(this))
+    this.scene.add(controller1)
+    this.controllers.push(controller1)
+
+    // Controller 1 
+    const controller2 = this.renderer.xr.getController(1)
+    controller2.addEventListener('selectstart', this.onSelectStart.bind(this))
+    controller2.addEventListener('selectend', this.onSelectEnd.bind(this))
+    controller2.addEventListener('squeezestart', this.onSqueezeStart.bind(this))
+    controller2.addEventListener('squeezeend', this.onSqueezeEnd.bind(this))
+    this.scene.add(controller2)
+    this.controllers.push(controller2)
+
+    //controller representations
+    const controllerGrip1 = this.renderer.xr.getControllerGrip(0)
+    this.scene.add(controllerGrip1)
+    this.controllerGrips.push(controllerGrip1)
+
+    const controllerGrip2 = this.renderer.xr.getControllerGrip(1)
+    this.scene.add(controllerGrip2)
+    this.controllerGrips.push(controllerGrip2)
+
+    // visualize where the controller is pointing
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -1)
+    ])
+    const line = new THREE.Line(geometry)
+    line.name = 'line'
+    line.scale.z = 5
+
+    controller1.add(line.clone())
+    controller2.add(line.clone())
+
+    console.log('VR Controllers initialized')
+  }
+
+  private onSelectStart(event: any): void {
+    const controller = event.target
+    console.log('Controller select started:', controller.userData.index || 'unknown')
+    
+    if (this.heartMesh) {
+      const tempMatrix = new THREE.Matrix4()
+      tempMatrix.identity().extractRotation(controller.matrixWorld)
+      
+      const raycaster = new THREE.Raycaster()
+      raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld)
+      raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix)
+      raycaster.params.Points.threshold = 0.05
+      
+      const intersects = raycaster.intersectObject(this.heartMesh)
+      
+      if (intersects.length > 0) {
+        console.log('Controller is pointing at heart!')
+        this.isRotatingHeart = true
+        
+        if (this.controls) {
+          this.controls.enabled = false
+        }
+      }
+    }
+  }
+
+  private onSelectEnd(event: any): void {
+    const controller = event.target
+    console.log('Controller select ended:', controller.userData.index || 'unknown')
+    
+    if (this.isRotatingHeart || this.isScalingHeart) {
+      this.isRotatingHeart = false
+      this.isScalingHeart = false
+      console.log('Stopped heart interaction via controller')
+      
+      if (this.controls) {
+        this.controls.enabled = true
+      }
+    }
+  }
+
+  private onSqueezeStart(event: any): void {
+    const controller = event.target
+    console.log('Controller squeeze started:', controller.userData.index || 'unknown')
+    
+    // Use squeeze for scaling the heart
+    if (this.heartMesh) {
+      const tempMatrix = new THREE.Matrix4()
+      tempMatrix.identity().extractRotation(controller.matrixWorld)
+      
+      const raycaster = new THREE.Raycaster()
+      raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld)
+      raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix)
+      raycaster.params.Points.threshold = 0.05
+      
+      const intersects = raycaster.intersectObject(this.heartMesh)
+      
+      if (intersects.length > 0) {
+        console.log('Controller squeeze on heart - starting scale mode!')
+        this.isScalingHeart = true
+        this.initialScale = this.heartMesh.scale.x
+      }
+    }
+  }
+
+  private onSqueezeEnd(event: any): void {
+    const controller = event.target
+    console.log('Controller squeeze ended:', controller.userData.index || 'unknown')
+  }
 
 
 // HAND SETUP
