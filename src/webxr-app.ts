@@ -234,14 +234,29 @@ export class WebXRApp {
       const geometry = new THREE.BufferGeometry();
       geometry.setFromPoints(points);
 
-      const material = new THREE.PointsMaterial({ 
-        color: 0xff0000, 
-        size: 0.01,
-        sizeAttenuation: false
+      // const material = new THREE.PointsMaterial({ 
+      //   color: 0xff0000, 
+      //   size: 0.01,
+      //   sizeAttenuation: false
+      // });
+
+      // Load shaders
+      const vertexShader = await fetch('./src/shaders/pointcloud.vert.glsl').then(res => res.text());
+      const fragmentShader = await fetch('./src/shaders/pointcloud.frag.glsl').then(res => res.text());
+
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          pointSize: { value: 1.0 },
+          color: { value: new THREE.Color(0xff0000) }
+        },
+        vertexShader,
+        fragmentShader
       });
       
       const pointCloud = new THREE.Points(geometry, material);
       pointCloud.position.set(0, 1.6, -2);
+      pointCloud.userData = { type: 'heart' };
+      this.heartMesh = pointCloud as any; // Store for mouse interaction
       this.scene.add(pointCloud);
 
       console.log('3D heart visualization created');
@@ -414,6 +429,10 @@ export class WebXRApp {
 
     const onMouseDown = (event: MouseEvent) => {
       this.raycaster.setFromCamera(this.mouse, this.camera)
+      
+      // Set a much smaller threshold for point cloud intersection
+      this.raycaster.params.Points.threshold = 0.005
+      
       const intersects = this.raycaster.intersectObjects([
         ...this.slateButtons,
         ...(this.heartMesh ? [this.heartMesh] : [])
