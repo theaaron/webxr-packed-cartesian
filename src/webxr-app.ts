@@ -241,8 +241,8 @@ export class WebXRApp {
       // });
 
       // Load shaders
-      const vertexShader = await fetch('./src/shaders/pointcloud.vert.glsl').then(res => res.text());
-      const fragmentShader = await fetch('./src/shaders/pointcloud.frag.glsl').then(res => res.text());
+      const vertexShader = await fetch('./shaders/pointcloud.vert.glsl').then(res => res.text());
+      const fragmentShader = await fetch('./shaders/pointcloud.frag.glsl').then(res => res.text());
 
       const material = new THREE.ShaderMaterial({
         uniforms: {
