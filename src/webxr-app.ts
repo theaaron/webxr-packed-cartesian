@@ -182,31 +182,31 @@ export class WebXRApp {
 //////////////////////////////////////////////////////////////////////////////////////////////////////
     // INSTANCED CUBES
     
-      const cubeGeometry = new THREE.BoxGeometry(0.008, 0.008, 0.008, 1, 1, 1);
-      const cubeMaterial = new THREE.MeshPhongMaterial({
-        color: 0xff0000,
-        shininess: 100,
-        transparent: true,
-        opacity: 0.8,
-        side: THREE.DoubleSide
-      });
+      // const cubeGeometry = new THREE.BoxGeometry(0.008, 0.008, 0.008, 1, 1, 1);
+      // const cubeMaterial = new THREE.MeshPhongMaterial({
+      //   color: 0xff0000,
+      //   shininess: 100,
+      //   transparent: true,
+      //   opacity: 0.8,
+      //   side: THREE.DoubleSide
+      // });
   
-      const instancedMesh = new THREE.InstancedMesh(cubeGeometry, cubeMaterial, points.length);
+      // const instancedMesh = new THREE.InstancedMesh(cubeGeometry, cubeMaterial, points.length);
     
-      // Set position for each cube
-      const matrix = new THREE.Matrix4();
-      for (let i = 0; i < points.length; i++) {
-        matrix.makeTranslation(points[i].x, points[i].y, points[i].z);
-        instancedMesh.setMatrixAt(i, matrix);
-      }
-      instancedMesh.instanceMatrix.needsUpdate = true;
+      // // Set position for each cube
+      // const matrix = new THREE.Matrix4();
+      // for (let i = 0; i < points.length; i++) {
+      //   matrix.makeTranslation(points[i].x, points[i].y, points[i].z);
+      //   instancedMesh.setMatrixAt(i, matrix);
+      // }
+      // instancedMesh.instanceMatrix.needsUpdate = true;
       
-      instancedMesh.position.set(0, 1.6, -2);
-      instancedMesh.userData = { type: 'heart' };
-      this.heartMesh = instancedMesh;
-      this.scene.add(instancedMesh);
+      // instancedMesh.position.set(0, 1.6, -2);
+      // instancedMesh.userData = { type: 'heart' };
+      // this.heartMesh = instancedMesh;
+      // this.scene.add(instancedMesh);
   
-      console.log('3D heart cube mesh created');
+      // console.log('3D heart cube mesh created');
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
       // SPHERE MODEL
@@ -231,20 +231,20 @@ export class WebXRApp {
       // this.scene.add(instancedMesh);
 //////////////////////////////////////////////////////////////////////////////////////////////////////
       // ORIGINAL POINT CLOUD MODEL
-    //   const geometry = new THREE.BufferGeometry();
-    //   geometry.setFromPoints(points);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setFromPoints(points);
 
-    //   const material = new THREE.PointsMaterial({ 
-    //     color: 0xff0000, 
-    //     size: 0.01,
-    //     sizeAttenuation: false
-    //   });
+      const material = new THREE.PointsMaterial({ 
+        color: 0xff0000, 
+        size: 0.01,
+        sizeAttenuation: false
+      });
       
-    //   const pointCloud = new THREE.Points(geometry, material);
-    //   pointCloud.position.set(0, 1.6, -2);
-    //   this.scene.add(pointCloud);
+      const pointCloud = new THREE.Points(geometry, material);
+      pointCloud.position.set(0, 1.6, -2);
+      this.scene.add(pointCloud);
 
-    //   console.log('3D heart visualization created');
+      console.log('3D heart visualization created');
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
