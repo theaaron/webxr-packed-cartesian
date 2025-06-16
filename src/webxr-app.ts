@@ -13,8 +13,11 @@ export class WebXRApp {
   private heartMesh?: THREE.InstancedMesh
   private isRotatingHeart: boolean = false
   private isScalingHeart: boolean = false
+  private isMovingHeart: boolean = false
+  private previousControllerPosition: THREE.Vector3 = new THREE.Vector3()
   private previousMousePosition: THREE.Vector2 = new THREE.Vector2()
   private initialScale: number = 1
+  private initialRotation: THREE.Euler = new THREE.Euler()
   private controllers: THREE.Group[] = []
   private controllerGrips: THREE.Group[] = []
   private currentFile: string = '02-350um-192x192x192_lra_grid.json'
@@ -288,6 +291,35 @@ export class WebXRApp {
     if (this.controls) {
       this.controls.update()
     }
+
+    // Update heart based on controller interactions
+    if (this.heartMesh) {
+      const controller = this.controllers[0] // Use first controller
+      const delta = new THREE.Vector3()
+      delta.subVectors(controller.position, this.previousControllerPosition)
+
+      if (this.isRotatingHeart) {
+        // Rotate based on controller movement
+        const rotationSpeed = 2.0
+        this.heartMesh.rotation.y += delta.x * rotationSpeed
+        this.heartMesh.rotation.x += delta.y * rotationSpeed
+      }
+
+      if (this.isScalingHeart && !this.isMovingHeart) {
+        // Scale based on controller movement
+        const scaleFactor = 1.0 + delta.y * 2.0
+        const newScale = Math.max(0.1, Math.min(5.0, this.heartMesh.scale.x * scaleFactor))
+        this.heartMesh.scale.setScalar(newScale)
+      }
+
+      if (this.isMovingHeart) {
+        // Move heart with controller
+        this.heartMesh.position.add(delta)
+      }
+
+      this.previousControllerPosition.copy(controller.position)
+    }
+
     this.renderer.render(this.scene, this.camera)
   }
 
@@ -364,8 +396,16 @@ export class WebXRApp {
       const intersects = raycaster.intersectObject(this.heartMesh)
       
       if (intersects.length > 0) {
-        console.log('Controller is pointing at heart!')
-        this.isRotatingHeart = true
+        // Check if squeeze is also pressed for moving
+        if (this.isScalingHeart) {
+          this.isMovingHeart = true
+          this.previousControllerPosition.copy(controller.position)
+        } else {
+          // Otherwise start rotation
+          this.isRotatingHeart = true
+          this.initialRotation.copy(this.heartMesh.rotation)
+          this.previousControllerPosition.copy(controller.position)
+        }
         
         if (this.controls) {
           this.controls.enabled = false
@@ -378,10 +418,10 @@ export class WebXRApp {
     const controller = event.target
     console.log('Controller select ended:', controller.userData.index || 'unknown')
     
-    if (this.isRotatingHeart || this.isScalingHeart) {
+    if (this.isRotatingHeart || this.isMovingHeart) {
       this.isRotatingHeart = false
-      this.isScalingHeart = false
-      console.log('Stopped heart interaction via controller')
+      this.isMovingHeart = false
+      console.log('Stopped heart interaction')
       
       if (this.controls) {
         this.controls.enabled = true
@@ -393,7 +433,6 @@ export class WebXRApp {
     const controller = event.target
     console.log('Controller squeeze started:', controller.userData.index || 'unknown')
     
-    // Use squeeze for scaling the heart
     if (this.heartMesh) {
       const tempMatrix = new THREE.Matrix4()
       tempMatrix.identity().extractRotation(controller.matrixWorld)
@@ -406,9 +445,9 @@ export class WebXRApp {
       const intersects = raycaster.intersectObject(this.heartMesh)
       
       if (intersects.length > 0) {
-        console.log('Controller squeeze on heart - starting scale mode!')
         this.isScalingHeart = true
         this.initialScale = this.heartMesh.scale.x
+        this.previousControllerPosition.copy(controller.position)
       }
     }
   }
@@ -416,6 +455,11 @@ export class WebXRApp {
   private onSqueezeEnd(event: any): void {
     const controller = event.target
     console.log('Controller squeeze ended:', controller.userData.index || 'unknown')
+    
+    if (this.isScalingHeart) {
+      this.isScalingHeart = false
+      console.log('Stopped scaling heart')
+    }
   }
 
 
