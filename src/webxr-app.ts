@@ -17,6 +17,7 @@ export class WebXRApp {
   private initialScale: number = 1
   private controllers: THREE.Group[] = []
   private controllerGrips: THREE.Group[] = []
+  private currentFile: string = '02-350um-192x192x192_lra_grid.json'
 
   constructor() {
     this.scene = new THREE.Scene()
@@ -26,6 +27,7 @@ export class WebXRApp {
     this.mouse = new THREE.Vector2()
     
     this.init()
+    this.setupFilePicker()
   }
 
   private init(): void {
@@ -110,169 +112,173 @@ export class WebXRApp {
     }
   }
 
+  private setupFilePicker(): void {
+    const fileSelect = document.getElementById('file-select') as HTMLSelectElement
+    if (fileSelect) {
+      fileSelect.addEventListener('change', (event) => {
+        const target = event.target as HTMLSelectElement
+        const selectedFile = target.value
+        if (selectedFile !== this.currentFile) {
+          this.currentFile = selectedFile
+          this.loadNewPointCloud()
+        }
+      })
+    }
+  }
 
+  private async loadNewPointCloud(): Promise<void> {
+    // Remove existing heart mesh if it exists
+    if (this.heartMesh) {
+      this.scene.remove(this.heartMesh)
+      this.heartMesh = undefined
+    }
 
+    // Load new point cloud
+    await this.setupPointCloud()
+  }
 
   private async setupPointCloud(): Promise<void> {
     try {
-      const response = await fetch('./assets/02-350um-192x192x192_lra_grid.json');
-      // const response = await fetch('./assets/06-350um-192x192x192_lra_grid.json');
-      // const response = await fetch('./assets/07-350um-192x192x192_lra_grid.json');
-      // const response = await fetch('./assets/09-350um-192x192x192_lra_grid.json');
-      // const response = await fetch('./assets/13-350um-192x192x192_lra_grid.json');
+      let subDir = 'AtrialExamples'
+      if (this.currentFile.includes('Helix')) {
+        subDir = 'HelicalStructures'
+      } else if (this.currentFile.includes('lrv')) {
+        subDir = 'VentricularExamples'
+      }
+
+      const filePath = `/assets/GridSamples/${subDir}/${this.currentFile}`
+      console.log('Attempting to load file:', filePath)
+      const response = await fetch(filePath)
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       
-      const text = await response.text();
-      const modelData = JSON.parse(text);
+      const text = await response.text()
+      console.log('Raw response text (first 100 chars):', text.substring(0, 100))
       
-      const points: THREE.Vector3[] = [];
-      const fullTexelIndex = modelData.fullTexelIndex;
+      try {
+        const modelData = JSON.parse(text)
+        console.log('Successfully parsed JSON data')
+        
+        const points: THREE.Vector3[] = []
+        const fullTexelIndex = modelData.fullTexelIndex
 
+        if (!fullTexelIndex || !Array.isArray(fullTexelIndex)) {
+          throw new Error('fullTexelIndex is missing or not an array')
+        }
 
-      const mx = modelData.mx;
-      const my = modelData.my;
-      const nx = modelData.nx; 
-      const ny = modelData.ny;
+        const mx = modelData.mx
+        const my = modelData.my
+        const nx = modelData.nx
+        const ny = modelData.ny
 
-      console.log('Atlas parameters:', { mx, my, nx, ny });
+        if (!mx || !my || !nx || !ny) {
+          throw new Error('Missing required dimensions (mx, my, nx, ny)')
+        }
 
-      for (let i = 0; i < fullTexelIndex.length; i += 4) {
-          const atlasX = fullTexelIndex[i];     // X coordinate in full atlas texture
-          const atlasY = fullTexelIndex[i + 1]; // Y coordinate in full atlas texture
-          // const flag = fullTexelIndex[i + 2];   
-          const w = fullTexelIndex[i + 3];      // Intensity/validity
+        console.log('Atlas parameters:', { mx, my, nx, ny })
+
+        for (let i = 0; i < fullTexelIndex.length; i += 4) {
+          const atlasX = fullTexelIndex[i]     // X coordinate in full atlas texture
+          const atlasY = fullTexelIndex[i + 1] // Y coordinate in full atlas texture
+          // const flag = fullTexelIndex[i + 2]   
+          const w = fullTexelIndex[i + 3]      // Intensity/validity
           
           if (w > 0) {
-              const sliceCol = Math.floor(atlasX / nx); // Which column of slices (0-15)
-              const sliceRow = Math.floor(atlasY / ny); // Which row of slices (0-11)
-              
-              const sliceIndex = (my - 1 - sliceRow) * mx + sliceCol; // Flip row order
-              
-              const localX = atlasX % nx; // X within the slice (0-191)
-              const localY = atlasY % ny; // Y within the slice (0-191)
-              
-              const x = localX;           // X coordinate in 3D volume
-              const y = ny - 1 - localY;  // Flip Y coordinate
-              const z = sliceIndex;       // Z coordinate in 3D volume
-              
-              const normalizedX = (x / 192) - 0.5;
-              const normalizedY = (y / 192) - 0.5;
-              const normalizedZ = (z / 192) - 0.5;
-              
-              points.push(new THREE.Vector3(normalizedX, normalizedY, normalizedZ));
+            const sliceCol = Math.floor(atlasX / nx) // Which column of slices
+            const sliceRow = Math.floor(atlasY / ny) // Which row of slices
+            
+            const sliceIndex = (my - 1 - sliceRow) * mx + sliceCol // Flip row order
+            
+            const localX = atlasX % nx // X within the slice
+            const localY = atlasY % ny // Y within the slice
+            
+            const x = localX           // X coordinate in 3D volume
+            const y = ny - 1 - localY  // Flip Y coordinate
+            const z = sliceIndex       // Z coordinate in 3D volume
+            
+            // Normalize coordinates to [-0.5, 0.5] range
+            const normalizedX = (x / nx) - 0.5
+            const normalizedY = (y / ny) - 0.5
+            const normalizedZ = (z / (mx * my)) - 0.5
+            
+            points.push(new THREE.Vector3(normalizedX, normalizedY, normalizedZ))
           }
+        }
+
+        console.log('Created', points.length, 'points')
+
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // POINT CLOUD VISUALIZATION 
+        /*
+        const geometry = new THREE.BufferGeometry()
+        geometry.setFromPoints(points)
+        
+        // Load shaders
+        const vertexShader = await fetch('./shaders/pointcloud.vert.glsl').then(res => res.text())
+        const fragmentShader = await fetch('./shaders/pointcloud.frag.glsl').then(res => res.text())
+        
+        const material = new THREE.ShaderMaterial({
+          uniforms: {
+            pointSize: { value: 2.0 },
+            color: { value: new THREE.Color(0xff0000) }
+            },
+            vertexShader,
+            fragmentShader
+            })
+            
+            const pointCloud = new THREE.Points(geometry, material)
+            pointCloud.position.set(0, 1.6, -2)
+            pointCloud.userData = { type: 'heart' }
+            this.heartMesh = pointCloud as any
+            this.scene.add(pointCloud)
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            */
+           
+           ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+           // CUBE VISUALIZATION
+           const sampleRate = 4 // Adjust this value to control density
+           const sampledPoints: THREE.Vector3[] = []
+           for (let i = 0; i < points.length; i += sampleRate) {
+             sampledPoints.push(points[i])
+            }
+            
+            const cubeGeometry = new THREE.BoxGeometry(0.008, 0.008, 0.008)
+            const cubeMaterial = new THREE.MeshPhongMaterial({
+              color: 0xff0000,
+              shininess: 100,
+              transparent: true,
+              opacity: 0.8,
+              side: THREE.DoubleSide
+            })
+            
+            const instancedMesh = new THREE.InstancedMesh(cubeGeometry, cubeMaterial, sampledPoints.length)
+            
+            // Set position for each cube
+            const matrix = new THREE.Matrix4()
+            for (let i = 0; i < sampledPoints.length; i++) {
+              matrix.makeTranslation(sampledPoints[i].x, sampledPoints[i].y, sampledPoints[i].z)
+              instancedMesh.setMatrixAt(i, matrix)
+            }
+            instancedMesh.instanceMatrix.needsUpdate = true
+            
+            instancedMesh.position.set(0, 1.6, -2)
+            instancedMesh.userData = { type: 'heart' }
+            this.heartMesh = instancedMesh
+            this.scene.add(instancedMesh)
+            
+            console.log('3D structure visualization created with', sampledPoints.length, 'cubes')
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            
+          } catch (error) {
+            console.error('Error parsing JSON:', error)
+          }
+        } catch (error) {
+          console.error('Error loading point cloud:', error)
+        }
       }
-
-      console.log('Created', points.length, 'points');
-      
-
-      const bounds = {
-          x: [Infinity, -Infinity],
-          y: [Infinity, -Infinity],
-          z: [Infinity, -Infinity]
-      };
-      
-      for (const point of points) {
-          if (point.x < bounds.x[0]) bounds.x[0] = point.x;
-          if (point.x > bounds.x[1]) bounds.x[1] = point.x;
-          if (point.y < bounds.y[0]) bounds.y[0] = point.y;
-          if (point.y > bounds.y[1]) bounds.y[1] = point.y;
-          if (point.z < bounds.z[0]) bounds.z[0] = point.z;
-          if (point.z > bounds.z[1]) bounds.z[1] = point.z;
-      }
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-    // INSTANCED CUBES
-    
-      // const cubeGeometry = new THREE.BoxGeometry(0.008, 0.008, 0.008, 1, 1, 1);
-      // const cubeMaterial = new THREE.MeshPhongMaterial({
-      //   color: 0xff0000,
-      //   shininess: 100,
-      //   transparent: true,
-      //   opacity: 0.8,
-      //   side: THREE.DoubleSide
-      // });
-  
-      // const instancedMesh = new THREE.InstancedMesh(cubeGeometry, cubeMaterial, points.length);
-    
-      // // Set position for each cube
-      // const matrix = new THREE.Matrix4();
-      // for (let i = 0; i < points.length; i++) {
-      //   matrix.makeTranslation(points[i].x, points[i].y, points[i].z);
-      //   instancedMesh.setMatrixAt(i, matrix);
-      // }
-      // instancedMesh.instanceMatrix.needsUpdate = true;
-      
-      // instancedMesh.position.set(0, 1.6, -2);
-      // instancedMesh.userData = { type: 'heart' };
-      // this.heartMesh = instancedMesh;
-      // this.scene.add(instancedMesh);
-  
-      // console.log('3D heart cube mesh created');
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-      // SPHERE MODEL
-      // const sphereGeometry = new THREE.SphereGeometry(0.008, 8, 6);
-      // const sphereMaterial = new THREE.MeshPhongMaterial({
-      //   color: 0xDC143C, 
-      //   transparent: true,
-      //   opacity: 0.9
-      // });
-
-      // const instancedMesh = new THREE.InstancedMesh(sphereGeometry, sphereMaterial, points.length);
-    
-      // // Set position for each sphere
-      // const matrix = new THREE.Matrix4();
-      // for (let i = 0; i < points.length; i++) {
-      //   matrix.makeTranslation(points[i].x, points[i].y, points[i].z);
-      //   instancedMesh.setMatrixAt(i, matrix);
-      // }
-      // instancedMesh.instanceMatrix.needsUpdate = true;
-      
-      // instancedMesh.position.set(0, 1.6, -2);
-      // this.scene.add(instancedMesh);
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-      // ORIGINAL POINT CLOUD MODEL
-      const geometry = new THREE.BufferGeometry();
-      geometry.setFromPoints(points);
-
-      // const material = new THREE.PointsMaterial({ 
-      //   color: 0xff0000, 
-      //   size: 0.01,
-      //   sizeAttenuation: false
-      // });
-
-      // Load shaders
-      const vertexShader = await fetch('./shaders/pointcloud.vert.glsl').then(res => res.text());
-      const fragmentShader = await fetch('./shaders/pointcloud.frag.glsl').then(res => res.text());
-
-      const material = new THREE.ShaderMaterial({
-        uniforms: {
-          pointSize: { value: 1.0 },
-          color: { value: new THREE.Color(0xff0000) }
-        },
-        vertexShader,
-        fragmentShader
-      });
-      
-      const pointCloud = new THREE.Points(geometry, material);
-      pointCloud.position.set(0, 1.6, -2);
-      pointCloud.userData = { type: 'heart' };
-      this.heartMesh = pointCloud as any; // Store for mouse interaction
-      this.scene.add(pointCloud);
-
-      console.log('3D heart visualization created');
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-    } catch (error) {
-      console.error('Error loading point cloud:', error);
-    }
-  }
 
   private animate(): void {
     this.renderer.setAnimationLoop(() => this.render())
@@ -623,8 +629,6 @@ export class WebXRApp {
     window.addEventListener('mouseup', onMouseUp)
     window.addEventListener('click', onMouseClick)
   }
-
-
 
   // ACTIONS TO SETUP LATER ON SLATE
 

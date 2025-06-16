@@ -1,3 +1,37 @@
 #vr-button {
     background-color: black;
 }
+
+#file-picker {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 10px;
+  border-radius: 5px;
+}
+
+#file-select {
+  padding: 8px;
+  font-size: 14px;
+  background: #333;
+  color: white;
+  border: 1px solid #666;
+  border-radius: 4px;
+  min-width: 300px;
+}
+
+#file-select optgroup {
+  font-weight: bold;
+  color: #4a9eff;
+}
+
+#file-select option {
+  color: white;
+  padding: 4px;
+}
+
+#file-select option:hover {
+  background: #4a9eff;
+}
