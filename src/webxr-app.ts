@@ -242,7 +242,7 @@ export class WebXRApp {
            
            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
            // CUBE VISUALIZATION
-           const sampleRate = 4 // Adjust this value to control density
+           const sampleRate = 4 
            const sampledPoints: THREE.Vector3[] = []
            for (let i = 0; i < points.length; i += sampleRate) {
              sampledPoints.push(points[i])
@@ -253,7 +253,7 @@ export class WebXRApp {
               color: 0xff0000,
               shininess: 100,
               transparent: true,
-              opacity: 0.8,
+              opacity: 0.3,
               side: THREE.DoubleSide
             })
             
@@ -298,23 +298,39 @@ export class WebXRApp {
       const delta = new THREE.Vector3()
       delta.subVectors(controller.position, this.previousControllerPosition)
 
+      // Update ray color based on interaction state
+      const ray = controller.children.find(child => child.name === 'ray1') as THREE.Line
+      if (ray) {
+        const material = ray.material as THREE.LineBasicMaterial
+        if (this.isRotatingHeart) {
+          material.color.setHex(0xff0000) // Red for rotation
+        } else if (this.isScalingHeart) {
+          material.color.setHex(0x0000ff) // Blue for scaling
+        } else if (this.isMovingHeart) {
+          material.color.setHex(0xffff00) // Yellow for moving
+        } else {
+          material.color.setHex(0x00ff00) // Green for idle
+        }
+      }
+
       if (this.isRotatingHeart) {
         // Rotate based on controller movement
-        const rotationSpeed = 2.0
+        const rotationSpeed = 5.0
         this.heartMesh.rotation.y += delta.x * rotationSpeed
         this.heartMesh.rotation.x += delta.y * rotationSpeed
       }
 
       if (this.isScalingHeart && !this.isMovingHeart) {
         // Scale based on controller movement
-        const scaleFactor = 1.0 + delta.y * 2.0
+        const scaleFactor = 1.0 + delta.y * 5.0
         const newScale = Math.max(0.1, Math.min(5.0, this.heartMesh.scale.x * scaleFactor))
         this.heartMesh.scale.setScalar(newScale)
       }
 
       if (this.isMovingHeart) {
         // Move heart with controller
-        this.heartMesh.position.add(delta)
+        const moveSpeed = 2.0
+        this.heartMesh.position.add(delta.multiplyScalar(moveSpeed))
       }
 
       this.previousControllerPosition.copy(controller.position)
@@ -365,17 +381,28 @@ export class WebXRApp {
     this.scene.add(controllerGrip2)
     this.controllerGrips.push(controllerGrip2)
 
-    // visualize where the controller is pointing
-    const geometry = new THREE.BufferGeometry().setFromPoints([
+    // Create a more visible ray for each controller
+    const rayGeometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(0, 0, -1)
     ])
-    const line = new THREE.Line(geometry)
-    line.name = 'line'
-    line.scale.z = 5
+    
+    // Create a glowing line material
+    const rayMaterial = new THREE.LineBasicMaterial({
+      color: 0x00ff00,
+      transparent: true,
+      opacity: 0.5
+    })
+    
+    const ray1 = new THREE.Line(rayGeometry, rayMaterial)
+    ray1.name = 'ray1'
+    ray1.scale.z = 5
+    controller1.add(ray1)
 
-    controller1.add(line.clone())
-    controller2.add(line.clone())
+    const ray2 = new THREE.Line(rayGeometry, rayMaterial)
+    ray2.name = 'ray2'
+    ray2.scale.z = 5
+    controller2.add(ray2)
 
     console.log('VR Controllers initialized')
   }
@@ -391,20 +418,26 @@ export class WebXRApp {
       const raycaster = new THREE.Raycaster()
       raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld)
       raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix)
-      raycaster.params.Points.threshold = 0.05
+      
+      // Increase threshold for better intersection detection
+      raycaster.params.Points.threshold = 0.1
+      raycaster.params.Line.threshold = 0.1
       
       const intersects = raycaster.intersectObject(this.heartMesh)
+      console.log('Intersects:', intersects.length)
       
       if (intersects.length > 0) {
         // Check if squeeze is also pressed for moving
         if (this.isScalingHeart) {
           this.isMovingHeart = true
           this.previousControllerPosition.copy(controller.position)
+          console.log('Starting move mode')
         } else {
           // Otherwise start rotation
           this.isRotatingHeart = true
           this.initialRotation.copy(this.heartMesh.rotation)
           this.previousControllerPosition.copy(controller.position)
+          console.log('Starting rotation mode')
         }
         
         if (this.controls) {
@@ -440,14 +473,19 @@ export class WebXRApp {
       const raycaster = new THREE.Raycaster()
       raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld)
       raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix)
-      raycaster.params.Points.threshold = 0.05
+      
+      // Increase threshold for better intersection detection
+      raycaster.params.Points.threshold = 0.1
+      raycaster.params.Line.threshold = 0.1
       
       const intersects = raycaster.intersectObject(this.heartMesh)
+      console.log('Squeeze intersects:', intersects.length)
       
       if (intersects.length > 0) {
         this.isScalingHeart = true
         this.initialScale = this.heartMesh.scale.x
         this.previousControllerPosition.copy(controller.position)
+        console.log('Starting scale mode')
       }
     }
   }
