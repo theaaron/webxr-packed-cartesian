@@ -1,1 +1,2 @@
 public/assets/*.json filter=lfs diff=lfs merge=lfs -text
+public/assets/GridSamples/**/*.json filter=lfs diff=lfs merge=lfs -text
