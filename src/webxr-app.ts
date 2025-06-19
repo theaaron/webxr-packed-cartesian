@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { MTLLoader, OBJLoader } from 'three/examples/jsm/Addons.js'
 
 export class WebXRApp {
   private scene: THREE.Scene
@@ -39,6 +40,7 @@ export class WebXRApp {
     this.setupRenderer()
     this.setupControls()
     this.setupLighting()
+    this.setupRoom()
     this.setupWebXR()
     this.setupControllers()
     this.setupSlate()
@@ -92,10 +94,10 @@ export class WebXRApp {
   }
 
   private setupLighting(): void {
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6)
+    const ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.9)
     this.scene.add(ambientLight)
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9)
     directionalLight.position.set(10, 10, 5)
     this.scene.add(directionalLight)
   }
@@ -224,7 +226,7 @@ export class WebXRApp {
         const fragmentShader = await fetch('./shaders/pointcloud.frag.glsl').then(res => res.text())
         
         const material = new THREE.ShaderMaterial({
-          uniforms: {
+          uniforms: {3
             pointSize: { value: 2.0 },
             color: { value: new THREE.Color(0xff0000) }
             },
@@ -248,12 +250,12 @@ export class WebXRApp {
              sampledPoints.push(points[i])
             }
             
-            const cubeGeometry = new THREE.BoxGeometry(0.008, 0.008, 0.008)
+            const cubeGeometry = new THREE.BoxGeometry(0.01, 0.01, 0.01)
             const cubeMaterial = new THREE.MeshPhongMaterial({
               color: 0xff0000,
               shininess: 100,
               transparent: true,
-              opacity: 0.3,
+              opacity: 0.9,
               side: THREE.DoubleSide
             })
             
@@ -347,6 +349,22 @@ export class WebXRApp {
     if (this.controls) {
       this.controls.update()
     }
+  }
+
+  private setupRoom(): void {
+    const objLoader = new OBJLoader;
+    const mtlLoader = new MTLLoader;
+    mtlLoader.load('assets/models/cath_lab/cath_lab.mtl', (mtl) => {
+      mtl.preload()
+      objLoader.setMaterials(mtl)
+    });
+    objLoader.load('/assets/models/cath_lab/cath_lab.obj', (root) => {
+      
+      this.scene.add(root);
+      
+    })
+
+
   }
 
 
